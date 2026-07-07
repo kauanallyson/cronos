@@ -8,58 +8,107 @@
 
 int main(void)
 {
-	const char *wTitle = "cronos";
-	const Vector2 wSizes = {800, 600};
-	const Vector2 center = {.x = wSizes.x / 2.0f, .y = wSizes.y / 2.0f};
+	const char *W_TITLE = "cronos";
+	const Vector2 W_SIZE = {800, 600};
+	const Vector2 SCREEN_CENTER = {.x = W_SIZE.x / 2.0f, .y = W_SIZE.y / 2.0f};
 
-	InitWindow(wSizes.x, wSizes.y, wTitle);
+	InitWindow(W_SIZE.x, W_SIZE.y, W_TITLE);
 	SetTargetFPS(60);
 	ChangeDirectory(GetApplicationDirectory()); // set relative path
 
-	const char *text = "cronos";
-	const float fontSize = 40.0f;
-	const float spacing = 1.0f;
-	const Font font = GetFontDefault();
+	const char *CRONOS_LABEL = "cronos";
+	const Font FONT = GetFontDefault();
+	const float FONT_SIZE = 40.0f;
+	const float FONT_SPACING = 1.0f;
+
+	const Vector2 TEXT_SIZE = MeasureTextEx(FONT, CRONOS_LABEL, FONT_SIZE, FONT_SPACING);
+	const Vector2 TEXT_POS = {
+		.x = SCREEN_CENTER.x - (TEXT_SIZE.x / 2.0f),
+		.y = (TEXT_SIZE.y / 2.0f)};
 
 	InitAudioDevice();
-	Music music = LoadMusicStream(MENU_MUSIC);
-	PlayMusicStream(music);
+	const Music MUSIC = LoadMusicStream(MENU_MUSIC);
+	PlayMusicStream(MUSIC);
+	bool pause = false;
 	float timePlayed = 0.0f; // [0.0f..1.0f]
+	float volume = 0.8f;	 // [0.0f..1.0f]
+	const float DELTA_VOLUME = 0.025f;
+	SetMusicVolume(MUSIC, volume);
 
-	const int segments = 36;
-	const float radius = 100.0f;
-	const float startAngle = 270.0f; // 12horas
-	float endAngle = timePlayed * 360.0f + startAngle;
+	const int SEGMENTS = 36;
+	const float RADIUS = 100.0f;
+	const float START_ANGLE = 270.0f;					// 12horas
+	float endAngle = timePlayed * 360.0f + START_ANGLE; // offset
+
+	// lb = LoadingBar
+	const float NINTH_Y = W_SIZE.y * 0.9f;
+	const float LB_THICKNESS = 5.0f;
+	const Vector2 LB_START_POS = {.x = W_SIZE.x * 0.1f, .y = NINTH_Y};
+	const Vector2 LB_END_POS = {.x = W_SIZE.x * 0.9f, .y = NINTH_Y};
+	Vector2 lbCurrPos = {.x = LB_START_POS.x, .y = NINTH_Y};
 
 	while (!WindowShouldClose())
 	{
-		UpdateMusicStream(music);
-		timePlayed = GetMusicTimePlayed(music) / GetMusicTimeLength(music);
-		if (timePlayed > 1.0f)
+		UpdateMusicStream(MUSIC);
+
+		if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
 		{
-			timePlayed = 0.0f; // loop
+			pause = !pause;
+			if (pause)
+				PauseMusicStream(MUSIC);
+			else
+				ResumeMusicStream(MUSIC);
 		}
 
-		endAngle = (timePlayed * 360.0f) + startAngle;
+		if (IsKeyDown(KEY_UP))
+		{
+			volume += DELTA_VOLUME;
+			if (volume > 1.0f)
+				volume = 1.0f;
+			SetMusicVolume(MUSIC, volume);
+		}
+		else if (IsKeyDown(KEY_DOWN))
+		{
+			volume -= DELTA_VOLUME;
+			if (volume < 0.0f)
+				volume = 0.0f;
+			SetMusicVolume(MUSIC, volume);
+		}
 
-		Vector2 tSizes = MeasureTextEx(font, text, fontSize, spacing);
-		Vector2 tPos = {
-			.x = center.x - (tSizes.x / 2.0f),
-			.y = (tSizes.y / 2.0f)};
+		if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R))
+		{
+			StopMusicStream(MUSIC);
+			PlayMusicStream(MUSIC);
+		}
+
+		endAngle = (timePlayed * 360.0f) + START_ANGLE;
+		lbCurrPos.x = timePlayed * (W_SIZE.x * 0.8f) + LB_START_POS.x;
+
+		timePlayed = GetMusicTimePlayed(MUSIC) / GetMusicTimeLength(MUSIC);
+
+		if (timePlayed > 1.0f)
+			timePlayed = 0.0f; // loop
 
 		BeginDrawing();
 		{
 			ClearBackground(ZOZBLACK);
-			DrawTextEx(font, text, tPos, fontSize, spacing, RAYWHITE);
-			DrawCircleSector(center, radius, startAngle, endAngle, segments, MUSGO_GREEN);
+			DrawTextEx(FONT, CRONOS_LABEL, TEXT_POS, FONT_SIZE, FONT_SPACING, RAYWHITE);
+
+			// pie loader
+			DrawCircleSector(SCREEN_CENTER, RADIUS, START_ANGLE, endAngle, SEGMENTS, MUSGO_GREEN);
+			DrawRingLines(SCREEN_CENTER, RADIUS - 1, RADIUS, START_ANGLE, endAngle, SEGMENTS, RAYWHITE);
+
+			// lb
+			DrawLineEx(LB_START_POS, LB_END_POS, LB_THICKNESS, RAYWHITE);
+			DrawLineEx(LB_START_POS, lbCurrPos, LB_THICKNESS, MUSGO_GREEN);
 		}
 		EndDrawing();
 	}
 
-	UnloadMusicStream(music);
+	UnloadMusicStream(MUSIC);
 	CloseAudioDevice();
 
-	UnloadFont(font);
+	UnloadFont(FONT);
 
 	CloseWindow();
 	return 0;

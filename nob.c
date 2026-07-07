@@ -1,4 +1,5 @@
 #define NOB_IMPLEMENTATION
+#define NOB_WARN_DEPRECATED
 #include "nob.h"
 
 #define BUILD_FOLDER "build/"
