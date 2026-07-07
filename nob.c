@@ -16,12 +16,13 @@ int main(int argc, char **argv)
     }
 
     Nob_Cmd cmd = {0};
-    nob_cmd_append(&cmd, "gcc", "-Wall", "-Wextra", "O3" "-o", BUILD_FOLDER "cronos", SRC_FOLDER "main.c");
+    nob_cmd_append(&cmd, "gcc", "-Wall", "-Wextra",
+                   "-o",
+                   BUILD_FOLDER "cronos", SRC_FOLDER "main.c");
 
     nob_cmd_append(&cmd, "-I" RAYPATH "include");
-    nob_cmd_append(&cmd, RAYPATH "lib/libraylib.a");
-    nob_cmd_append(&cmd, "-lGL", "-lm", "-lpthread", "-ldl", "-lrt", "-lX11");
-    nob_cmd_append(&cmd, "-lm");
+    nob_cmd_append(&cmd, "-L" RAYPATH "lib");
+    nob_cmd_append(&cmd, "-l:libraylib.a", "-lm", "-lX11");
 
     if (!nob_cmd_run(&cmd))
         return 1;
