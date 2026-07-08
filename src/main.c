@@ -1,5 +1,4 @@
 #include "raylib.h"
-#define NOB_IMPLEMENTATION
 
 #define RESOURCES_DIR "../resources/"
 #define BG_MUSIC RESOURCES_DIR "On & On NCS.mp3"
@@ -39,38 +38,34 @@ int main(void)
 	bool pause = false;
 	float volume = 0.5f;						// [0.0f..1.0f]
 	float timePlayed = 0.0f;					// [0.0f..1.0f]
-	float musicLen = GetMusicTimeLength(music); // Get music time length (in seconds)
+	float musicLen = GetMusicTimeLength(music); // music length in secs
 	float secsLeft = musicLen - timePlayed;
 	const char *secsLabel = TextFormat("%02.02f s", secsLeft);
 	SetMusicVolume(music, volume);
 	const float DELTA_VOLUME = 0.025f;
 	Vector2 secsPos = {.x = textPos.x, .y = textPos.y + textSize.y};
 
-	Image image = LoadImage(COVER);
-	if (!IsImageValid(image))
+	// cover
+	Texture2D texture = LoadTexture(COVER);
+	if (!IsTextureValid(texture))
 	{
 		TraceLog(LOG_WARNING, "Failed to load image: %s", COVER);
 	}
-	Rectangle cropRect = {
-		.x = (image.width - 320.0f) / 2.0f,
-		.y = (image.height - 320.0f) / 2.0f,
-		.width = 320.0f,
-		.height = 320.0f};
-	ImageCrop(&image, cropRect);
-	Rectangle imagePos = {.x = wCenter.x - 320.0f / 2.0f, .y = wCenter.y - 320.0f / 2.0f, .width = 320.0f, .height = 320.0f};
-	Texture2D texture = LoadTextureFromImage(image);
-	UnloadImage(image); // depois de gerar a textura pode dar free na imagem
 
 	// lb = LoadingBar
-	float lbYPos = wSize.y * 0.9f;
-	float thickness = 10.0f;
-	Vector2 lbStartPos = {.x = wSize.x * 0.1f, .y = lbYPos};
-	Vector2 lbEndPos = {.x = wSize.x * 0.9f, .y = lbYPos};
-	Vector2 lbCurrPos = {.x = lbStartPos.x, .y = lbYPos};
+	Vector2 lbPos = {.x = wSize.x * 0.1f, .y = wSize.y * 0.90f};
+	Vector2 lbSize = {.x = wSize.x * 0.8f, .y = wSize.y * 0.025f};
 
 	while (!WindowShouldClose())
 	{
 		UpdateMusicStream(music);
+
+		// timing
+		timePlayed = GetMusicTimePlayed(music) / musicLen;
+		if (timePlayed > 1.0f)
+			timePlayed = 0.0f;
+		float secsLeft = musicLen - GetMusicTimePlayed(music);
+		secsLabel = TextFormat("%02.02f s", secsLeft);
 
 		if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
 		{
@@ -102,25 +97,19 @@ int main(void)
 			PlayMusicStream(music);
 		}
 
-		// timing
-		float timePlayedSecs = GetMusicTimePlayed(music);
-		timePlayed = timePlayedSecs / musicLen;
-		if (timePlayed > 1.0f)
-			timePlayed = 0.0f;
-		float secsLeft = musicLen - timePlayedSecs;
-		secsLabel = TextFormat("%02.02f s", secsLeft);
-		lbCurrPos.x = timePlayed * (wSize.x * 0.8f) + lbStartPos.x;
-
 		BeginDrawing();
 		{
 			ClearBackground(ZOZBLACK);
+			// labels
 			DrawTextEx(font, label, textPos, fontSize, fontSpacing, RAYWHITE);
 			DrawTextEx(font, secsLabel, secsPos, fontSize, fontSpacing, RAYWHITE);
-			DrawTextureEx(texture, (Vector2){.x = imagePos.x, .y = imagePos.y}, 0, 1, WHITE);
+
+			// cover
+			DrawTextureV(texture, (Vector2){.x = wCenter.x - (texture.width / 2), .y = wCenter.y - (texture.height / 2)}, WHITE);
 
 			// lb
-			DrawLineEx(lbStartPos, lbEndPos, thickness, RAYWHITE);
-			DrawLineEx(lbStartPos, lbCurrPos, thickness, MUSGO_GREEN);
+			DrawRectangleV(lbPos, lbSize, GRAY);
+			DrawRectangleV(lbPos, (Vector2){.x = timePlayed * lbSize.x, .y = lbSize.y}, MUSGO_GREEN);
 		}
 		EndDrawing();
 	}
