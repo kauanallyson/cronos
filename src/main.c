@@ -32,24 +32,34 @@ int main(void)
 	Music music = LoadMusicStream(BG_MUSIC);
 	if (!IsMusicValid(music))
 	{
-		TraceLog(LOG_WARNING, "Failed to load music: %s", BG_MUSIC);
+		TraceLog(LOG_ERROR, "Failed to load music: %s", BG_MUSIC);
+		CloseAudioDevice();
+		CloseWindow();
+		return 1;
 	}
 	PlayMusicStream(music);
 	bool pause = false;
-	float volume = 0.5f;						// [0.0f..1.0f]
-	float timePlayed = 0.0f;					// [0.0f..1.0f]
-	float musicLen = GetMusicTimeLength(music); // music length in secs
-	float secsLeft = musicLen - timePlayed;
-	const char *secsLabel = TextFormat("%02.02f s", secsLeft);
+	float volume = 0.5f; // [0.0f..1.0f]
 	SetMusicVolume(music, volume);
 	const float DELTA_VOLUME = 0.025f;
-	Vector2 secsPos = {.x = textPos.x, .y = textPos.y + textSize.y};
+	float musicLen = GetMusicTimeLength(music); // music length in secs
+	float timePlayed = 0.0f;					// [0.0f..1.0f]
+	float timePlayedSecs = 0.0f;				// playback position in secs
+	const char *secsLabel = TextFormat("%02d:%02d", (int)musicLen / 60, (int)musicLen % 60);
+	Vector2 secsSize = MeasureTextEx(font, secsLabel, fontSize, fontSpacing);
+	Vector2 secsPos = {
+		.x = wCenter.x - (secsSize.x / 2.0f),
+		.y = textPos.y + textSize.y};
 
 	// cover
 	Texture2D texture = LoadTexture(COVER);
 	if (!IsTextureValid(texture))
 	{
-		TraceLog(LOG_WARNING, "Failed to load image: %s", COVER);
+		TraceLog(LOG_ERROR, "Failed to load image: %s", COVER);
+		UnloadMusicStream(music);
+		CloseAudioDevice();
+		CloseWindow();
+		return 1;
 	}
 
 	// lb = LoadingBar
@@ -61,11 +71,18 @@ int main(void)
 		UpdateMusicStream(music);
 
 		// timing
-		timePlayed = GetMusicTimePlayed(music) / musicLen;
-		if (timePlayed > 1.0f)
-			timePlayed = 0.0f;
-		float secsLeft = musicLen - GetMusicTimePlayed(music);
-		secsLabel = TextFormat("%02.02f s", secsLeft);
+		timePlayedSecs = GetMusicTimePlayed(music);
+		timePlayed = timePlayedSecs / musicLen;
+
+		float secsLeft = musicLen - timePlayedSecs;
+		if (secsLeft < 0.0f)
+			secsLeft = 0.0f;
+
+		int mins = (int)secsLeft / 60;
+		int secs = (int)secsLeft % 60;
+		secsLabel = TextFormat("%02d:%02d", mins, secs);
+		secsSize = MeasureTextEx(font, secsLabel, fontSize, fontSpacing);
+		secsPos.x = wCenter.x - (secsSize.x / 2.0f);
 
 		if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
 		{
