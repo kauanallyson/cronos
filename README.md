@@ -17,7 +17,4 @@ flags:
 ```bash
 ./nob -help                        # mostra as opções disponiveis
 ./nob -list                        # lista os targets disponiveis
-./nob -target windows              # compila para windows
-./nob -target release              # gera os releases (linux + windows)
-./nob -target release -only linux  # gera o release só de linux
 ```
