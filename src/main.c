@@ -1,4 +1,6 @@
 #include "raylib.h"
+#define CRONOS_IMPLEMENTATION
+#include "cronos.h"
 
 #define RESOURCES_DIR "../resources/"
 #define BG_MUSIC RESOURCES_DIR "On & On NCS.mp3"
@@ -27,36 +29,31 @@ int main(void)
 		.x = wCenter.x - (textSize.x / 2.0f),
 		.y = (textSize.y / 2.0f)};
 
+	Assets assets = {0};
+
 	// music
 	InitAudioDevice();
-	Music music = LoadMusicStream(BG_MUSIC);
-	if (!IsMusicValid(music))
+	if (!set_music_asset(&assets, BG_MUSIC))
 	{
 		TraceLog(LOG_ERROR, "Failed to load music: %s", BG_MUSIC);
 		CloseAudioDevice();
 		CloseWindow();
 		return 1;
 	}
-	PlayMusicStream(music);
+	PlayMusicStream(assets.music);
 	bool pause = false;
 	float volume = 0.5f; // [0.0f..1.0f]
-	SetMusicVolume(music, volume);
+	SetMusicVolume(assets.music, volume);
 	const float DELTA_VOLUME = 0.025f;
-	float musicLen = GetMusicTimeLength(music); // music length in secs
-	float timePlayed = 0.0f;					// [0.0f..1.0f]
-	float timePlayedSecs = 0.0f;				// playback position in secs
-	const char *secsLabel = TextFormat("%02d:%02d", (int)musicLen / 60, (int)musicLen % 60);
-	Vector2 secsSize = MeasureTextEx(font, secsLabel, fontSize, fontSpacing);
-	Vector2 secsPos = {
-		.x = wCenter.x - (secsSize.x / 2.0f),
-		.y = textPos.y + textSize.y};
+	const float SEEK_SECONDS = 5.0f;
+	Playback pb = {0};
+	refresh_playback_geometry(&pb, assets.music, font, fontSize, fontSpacing, wCenter, textPos, textSize);
 
 	// cover
-	Texture2D texture = LoadTexture(COVER);
-	if (!IsTextureValid(texture))
+	if (!set_image_asset(&assets, COVER))
 	{
 		TraceLog(LOG_ERROR, "Failed to load image: %s", COVER);
-		UnloadMusicStream(music);
+		UnloadMusicStream(assets.music);
 		CloseAudioDevice();
 		CloseWindow();
 		return 1;
@@ -66,31 +63,39 @@ int main(void)
 	Vector2 lbPos = {.x = wSize.x * 0.1f, .y = wSize.y * 0.90f};
 	Vector2 lbSize = {.x = wSize.x * 0.8f, .y = wSize.y * 0.025f};
 
+	// drop hint
+	const char *dropHint = "Drop an image or a song to replace it";
+	const float hintFontSize = 20.0f;
+	Vector2 hintSize = MeasureTextEx(font, dropHint, hintFontSize, fontSpacing);
+	Vector2 hintPos = {
+		.x = wCenter.x - (hintSize.x / 2.0f),
+		.y = lbPos.y - hintSize.y - 10.0f};
+
 	while (!WindowShouldClose())
 	{
-		UpdateMusicStream(music);
+		UpdateMusicStream(assets.music);
 
 		// timing
-		timePlayedSecs = GetMusicTimePlayed(music);
-		timePlayed = timePlayedSecs / musicLen;
+		pb.timePlayedSecs = GetMusicTimePlayed(assets.music);
+		pb.timePlayed = pb.timePlayedSecs / pb.musicLen;
 
-		float secsLeft = musicLen - timePlayedSecs;
+		float secsLeft = pb.musicLen - pb.timePlayedSecs;
 		if (secsLeft < 0.0f)
 			secsLeft = 0.0f;
 
 		int mins = (int)secsLeft / 60;
 		int secs = (int)secsLeft % 60;
-		secsLabel = TextFormat("%02d:%02d", mins, secs);
-		secsSize = MeasureTextEx(font, secsLabel, fontSize, fontSpacing);
-		secsPos.x = wCenter.x - (secsSize.x / 2.0f);
+		pb.secsLabel = TextFormat("%02d:%02d", mins, secs);
+		pb.secsSize = MeasureTextEx(font, pb.secsLabel, fontSize, fontSpacing);
+		pb.secsPos.x = wCenter.x - (pb.secsSize.x / 2.0f);
 
 		if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
 		{
 			pause = !pause;
 			if (pause)
-				PauseMusicStream(music);
+				PauseMusicStream(assets.music);
 			else
-				ResumeMusicStream(music);
+				ResumeMusicStream(assets.music);
 		}
 
 		if (IsKeyDown(KEY_UP))
@@ -98,20 +103,40 @@ int main(void)
 			volume += DELTA_VOLUME;
 			if (volume > 1.0f)
 				volume = 1.0f;
-			SetMusicVolume(music, volume);
+			SetMusicVolume(assets.music, volume);
 		}
 		else if (IsKeyDown(KEY_DOWN))
 		{
 			volume -= DELTA_VOLUME;
 			if (volume < 0.0f)
 				volume = 0.0f;
-			SetMusicVolume(music, volume);
+			SetMusicVolume(assets.music, volume);
 		}
 
 		if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R))
 		{
-			StopMusicStream(music);
-			PlayMusicStream(music);
+			StopMusicStream(assets.music);
+			PlayMusicStream(assets.music);
+		}
+
+		if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_LEFT))
+		{
+			float seekTo = pb.timePlayedSecs + (IsKeyPressed(KEY_RIGHT) ? SEEK_SECONDS : -SEEK_SECONDS);
+			if (seekTo < 0.0f)
+				seekTo = 0.0f;
+			else if (seekTo > pb.musicLen)
+				seekTo = pb.musicLen;
+			SeekMusicStream(assets.music, seekTo);
+			pb.timePlayedSecs = seekTo;
+			pb.timePlayed = pb.timePlayedSecs / pb.musicLen;
+		}
+
+		if (IsFileDropped())
+		{
+			FilePathList droppedFiles = LoadDroppedFiles();
+			for (size_t i = 0; i < (size_t)droppedFiles.count; ++i)
+				load_path(droppedFiles.paths[i], &assets, &pause, volume, &pb, font, fontSize, fontSpacing, wCenter, textPos, textSize);
+			UnloadDroppedFiles(droppedFiles);
 		}
 
 		BeginDrawing();
@@ -119,22 +144,25 @@ int main(void)
 			ClearBackground(ZOZBLACK);
 			// labels
 			DrawTextEx(font, label, textPos, fontSize, fontSpacing, RAYWHITE);
-			DrawTextEx(font, secsLabel, secsPos, fontSize, fontSpacing, RAYWHITE);
+			DrawTextEx(font, pb.secsLabel, pb.secsPos, fontSize, fontSpacing, RAYWHITE);
 
 			// cover
-			DrawTextureV(texture, (Vector2){.x = wCenter.x - (texture.width / 2), .y = wCenter.y - (texture.height / 2)}, WHITE);
+			DrawTextureV(assets.texture, (Vector2){wCenter.x - (assets.texture.width / 2), wCenter.y - (assets.texture.height / 2)}, WHITE);
 
 			// lb
 			DrawRectangleV(lbPos, lbSize, GRAY);
-			DrawRectangleV(lbPos, (Vector2){.x = timePlayed * lbSize.x, .y = lbSize.y}, MUSGO_GREEN);
+			DrawRectangleV(lbPos, (Vector2){pb.timePlayed * lbSize.x, lbSize.y}, MUSGO_GREEN);
+
+			// drop
+			DrawTextEx(font, dropHint, hintPos, hintFontSize, fontSpacing, RAYWHITE);
 		}
 		EndDrawing();
 	}
 
-	UnloadMusicStream(music);
+	UnloadMusicStream(assets.music);
 	CloseAudioDevice();
 
-	UnloadTexture(texture);
+	UnloadTexture(assets.texture);
 
 	CloseWindow();
 	return 0;
