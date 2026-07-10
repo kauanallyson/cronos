@@ -32,29 +32,25 @@ int main(int argc, char **argv)
     bool *list = flag_bool("list", false, "List all available build targets and exit");
     bool *help = flag_bool("help", false, "Print this help message and exit");
 
-    if (!flag_parse(argc, argv))
-    {
+    if (!flag_parse(argc, argv)) {
         flag_print_error(stderr);
         flag_print_options(stderr);
         return 1;
     }
 
-    if (*help)
-    {
+    if (*help) {
         printf("Usage: ./nob [OPTIONS]\n");
         flag_print_options(stdout);
         return 0;
     }
 
-    if (*list)
-    {
+    if (*list) {
         printf("Available targets:\n");
         printf("    linux\n");
         return 0;
     }
 
-    if (!nob_mkdir_if_not_exists(BUILD_DIR))
-    {
+    if (!nob_mkdir_if_not_exists(BUILD_DIR)) {
         nob_log(NOB_ERROR, "Could not create build folder '%s'", BUILD_DIR);
         return 1;
     }
