@@ -6,8 +6,16 @@
 
 #define BUILD_DIR "build/"
 #define SRC_DIR "src/"
-#define RAYPATH_LINUX "./raylib-6.0_linux_amd64/"
-#define RAYPATH_WINDOWS "./raylib-6.0_win64_mingw-w64/"
+
+#ifdef _WIN32
+#define RAYPATH "./raylib-6.0_win64_mingw-w64/"
+#define RAYGUI_OBJ BUILD_DIR "raygui_win.o"
+#define OUT_BIN BUILD_DIR "cronos.exe"
+#else
+#define RAYPATH "./raylib-6.0_linux_amd64/"
+#define RAYGUI_OBJ BUILD_DIR "raygui_linux.o"
+#define OUT_BIN BUILD_DIR "cronos"
+#endif
 
 static bool build_defaults(Nob_Cmd *cmd, bool release)
 {
@@ -20,24 +28,35 @@ static bool build_defaults(Nob_Cmd *cmd, bool release)
     }
 }
 
-static bool linux_flags(Nob_Cmd *cmd)
+static bool compile_raygui(bool release)
 {
-    nob_cmd_append(cmd, "-I.");
-    nob_cmd_append(cmd, "-I" RAYPATH_LINUX "include");
-    nob_cmd_append(cmd, "-o", BUILD_DIR "cronos", SRC_DIR "main.c");
-    nob_cmd_append(cmd, "-L" RAYPATH_LINUX "lib");
-    nob_cmd_append(cmd, "-l:libraylib.a", "-lm", "-lX11");
+    const char *inputs[] = {SRC_DIR "raygui.c", SRC_DIR "raygui.h"};
+    int rebuild = nob_needs_rebuild(RAYGUI_OBJ, inputs, NOB_ARRAY_LEN(inputs));
+    if (rebuild < 0)
+        return false;
+    if (rebuild == 0)
+        return true;
 
-    return nob_cmd_run(cmd);
+    nob_log(NOB_INFO, "Compiling raygui...");
+    Nob_Cmd cmd = {0};
+    build_defaults(&cmd, release);
+    nob_cmd_append(&cmd, "-I.");
+    nob_cmd_append(&cmd, "-I" RAYPATH "include");
+    nob_cmd_append(&cmd, "-c", "-o", RAYGUI_OBJ, SRC_DIR "raygui.c");
+    return nob_cmd_run(&cmd);
 }
 
-static bool win_flags(Nob_Cmd *cmd)
+static bool build(Nob_Cmd *cmd)
 {
     nob_cmd_append(cmd, "-I.");
-    nob_cmd_append(cmd, "-I" RAYPATH_WINDOWS "include");
-    nob_cmd_append(cmd, "-o", BUILD_DIR "cronos.exe", SRC_DIR "main.c");
-    nob_cmd_append(cmd, "-L" RAYPATH_WINDOWS "lib");
+    nob_cmd_append(cmd, "-I" RAYPATH "include");
+    nob_cmd_append(cmd, "-o", OUT_BIN, SRC_DIR "main.c", RAYGUI_OBJ);
+    nob_cmd_append(cmd, "-L" RAYPATH "lib");
+#ifdef _WIN32
     nob_cmd_append(cmd, "-l:libraylib.a", "-lgdi32", "-luser32", "-lwinmm", "-lshell32", "-mwindows");
+#else
+    nob_cmd_append(cmd, "-l:libraylib.a", "-lm", "-lX11");
+#endif
 
     return nob_cmd_run(cmd);
 }
@@ -46,14 +65,8 @@ int main(int argc, char **argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
-    // Core Flags
-    bool *list = flag_bool("list", false, "List all available build targets and exit");
     bool *help = flag_bool("help", false, "Print this help message and exit");
     bool *release = flag_bool("release", false, "Build in release mode with optimizations");
-
-    // Target Flags
-    bool *linux_flag = flag_bool("linux", false, "Build for Linux target");
-    bool *win_flag = flag_bool("win", false, "Build for Windows target");
 
     if (!flag_parse(argc, argv))
     {
@@ -69,55 +82,19 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if (*list)
-    {
-        printf("Available targets:\n");
-        printf("    linux\n");
-        printf("    win\n");
-        return 0;
-    }
-
     if (!nob_mkdir_if_not_exists(BUILD_DIR))
     {
         nob_log(NOB_ERROR, "Could not create build folder '%s'", BUILD_DIR);
         return 1;
     }
 
-    bool target_linux = false;
-    bool target_win = false;
-
-    if (*linux_flag)
-    {
-        target_linux = true;
-    }
-    else if (*win_flag)
-    {
-        target_win = true;
-    }
-    else
-    {
-#ifdef _WIN32
-        target_win = true;
-#else
-        target_linux = true;
-#endif
-    }
+    if (!compile_raygui(*release))
+        return 1;
 
     Nob_Cmd cmd = {0};
     build_defaults(&cmd, *release);
-
-    if (target_linux)
-    {
-        nob_log(NOB_INFO, "Building for Linux...");
-        if (!linux_flags(&cmd))
-            return 1;
-    }
-    else if (target_win)
-    {
-        nob_log(NOB_INFO, "Building for Windows...");
-        if (!win_flags(&cmd))
-            return 1;
-    }
+    if (!build(&cmd))
+        return 1;
 
     nob_log(NOB_INFO, "Build successful!");
     return 0;

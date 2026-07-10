@@ -20,8 +20,6 @@ typedef enum
     ASSET_KIND_MUSIC,
 } AssetKind;
 
-// Playback progress/timing state, derived from a Music stream and reset
-// together whenever the active music is swapped.
 typedef struct Playback
 {
     float musicLen;        // music length in secs
@@ -32,14 +30,22 @@ typedef struct Playback
     Vector2 secsPos;
 } Playback;
 
+typedef struct LabelLayout
+{
+    Font font;
+    float fontSize;
+    float fontSpacing;
+    Vector2 wCenter;
+    Vector2 textPos;
+    Vector2 textSize;
+} LabelLayout;
+
 AssetKind get_asset_kind(const char *filepath);
 bool set_image_asset(Assets *assets, const char *filepath);
 bool set_music_asset(Assets *assets, const char *filepath);
-void refresh_playback_geometry(Playback *pb, Music music, Font font, float fontSize, float fontSpacing,
-                               Vector2 wCenter, Vector2 textPos, Vector2 textSize);
+void refresh_playback(Playback *pb, Music music, LabelLayout layout);
 void load_path(const char *path, Assets *assets, bool *pause, float volume,
-               Playback *pb, Font font, float fontSize, float fontSpacing,
-               Vector2 wCenter, Vector2 textPos, Vector2 textSize);
+               Playback *pb, LabelLayout layout);
 
 #ifdef CRONOS_IMPLEMENTATION
 
@@ -114,22 +120,38 @@ bool set_music_asset(Assets *assets, const char *filepath)
     return true;
 }
 
-void refresh_playback_geometry(Playback *pb, Music music, Font font, float fontSize, float fontSpacing,
-                               Vector2 wCenter, Vector2 textPos, Vector2 textSize)
+static void reset_playback_time(Playback *pb, Music music)
 {
-    pb->musicLen = GetMusicTimeLength(music);
+    pb->musicLen = IsMusicValid(music) ? GetMusicTimeLength(music) : 0.0f;
     pb->timePlayed = 0.0f;
     pb->timePlayedSecs = 0.0f;
+}
+
+static void update_playback_label(Playback *pb, LabelLayout layout)
+{
     pb->secsLabel = TextFormat("%02d:%02d", (int)pb->musicLen / 60, (int)pb->musicLen % 60);
-    pb->secsSize = MeasureTextEx(font, pb->secsLabel, fontSize, fontSpacing);
-    pb->secsPos.x = wCenter.x - (pb->secsSize.x / 2.0f);
-    pb->secsPos.y = textPos.y + textSize.y;
+    pb->secsSize = MeasureTextEx(layout.font, pb->secsLabel, layout.fontSize, layout.fontSpacing);
+    pb->secsPos.x = layout.wCenter.x - (pb->secsSize.x / 2.0f);
+    pb->secsPos.y = layout.textPos.y + layout.textSize.y;
+}
+
+void refresh_playback(Playback *pb, Music music, LabelLayout layout)
+{
+    reset_playback_time(pb, music);
+    update_playback_label(pb, layout);
+}
+
+static void start_music_playback(Assets *assets, bool *pause, float volume, Playback *pb, LabelLayout layout)
+{
+    *pause = false;
+    PlayMusicStream(assets->music);
+    SetMusicVolume(assets->music, volume);
+    refresh_playback(pb, assets->music, layout);
 }
 
 // Loads `path` as either an image or music asset, updating playback state as needed.
 void load_path(const char *path, Assets *assets, bool *pause, float volume,
-               Playback *pb, Font font, float fontSize, float fontSpacing,
-               Vector2 wCenter, Vector2 textPos, Vector2 textSize)
+               Playback *pb, LabelLayout layout)
 {
     AssetKind kind = get_asset_kind(path);
 
@@ -140,12 +162,7 @@ void load_path(const char *path, Assets *assets, bool *pause, float volume,
     else if (kind == ASSET_KIND_MUSIC)
     {
         if (set_music_asset(assets, path))
-        {
-            *pause = false;
-            PlayMusicStream(assets->music);
-            SetMusicVolume(assets->music, volume);
-            refresh_playback_geometry(pb, assets->music, font, fontSize, fontSpacing, wCenter, textPos, textSize);
-        }
+            start_music_playback(assets, pause, volume, pb, layout);
     }
     else
     {
