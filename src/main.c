@@ -27,14 +27,14 @@ int main(void)
     const Vector2 textSize = MeasureTextEx(font, label, fontSize, fontSpacing);
     const Vector2 textPos = {
         .x = wCenter.x - (textSize.x / 2.0f),
-        .y = (textSize.y / 2.0f)
-    };
+        .y = (textSize.y / 2.0f)};
 
     Assets assets = {0};
 
     // music
     InitAudioDevice();
-    if (!set_music_asset(&assets, BG_MUSIC)) {
+    if (!set_music_asset(&assets, BG_MUSIC))
+    {
         TraceLog(LOG_ERROR, "Failed to load music: %s", BG_MUSIC);
         CloseAudioDevice();
         CloseWindow();
@@ -50,7 +50,8 @@ int main(void)
     refresh_playback_geometry(&pb, assets.music, font, fontSize, fontSpacing, wCenter, textPos, textSize);
 
     // cover
-    if (!set_image_asset(&assets, COVER)) {
+    if (!set_image_asset(&assets, COVER))
+    {
         TraceLog(LOG_ERROR, "Failed to load image: %s", COVER);
         UnloadMusicStream(assets.music);
         CloseAudioDevice();
@@ -68,10 +69,10 @@ int main(void)
     Vector2 hintSize = MeasureTextEx(font, dropHint, hintFontSize, fontSpacing);
     Vector2 hintPos = {
         .x = wCenter.x - (hintSize.x / 2.0f),
-        .y = lbPos.y - hintSize.y - 10.0f
-    };
+        .y = lbPos.y - hintSize.y - 10.0f};
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose())
+    {
         UpdateMusicStream(assets.music);
 
         // timing
@@ -88,7 +89,8 @@ int main(void)
         pb.secsSize = MeasureTextEx(font, pb.secsLabel, fontSize, fontSpacing);
         pb.secsPos.x = wCenter.x - (pb.secsSize.x / 2.0f);
 
-        if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
             pause = !pause;
             if (pause)
                 PauseMusicStream(assets.music);
@@ -96,24 +98,29 @@ int main(void)
                 ResumeMusicStream(assets.music);
         }
 
-        if (IsKeyDown(KEY_UP)) {
+        if (IsKeyDown(KEY_UP))
+        {
             volume += DELTA_VOLUME;
             if (volume > 1.0f)
                 volume = 1.0f;
             SetMusicVolume(assets.music, volume);
-        } else if (IsKeyDown(KEY_DOWN)) {
+        }
+        else if (IsKeyDown(KEY_DOWN))
+        {
             volume -= DELTA_VOLUME;
             if (volume < 0.0f)
                 volume = 0.0f;
             SetMusicVolume(assets.music, volume);
         }
 
-        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R)) {
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R))
+        {
             StopMusicStream(assets.music);
             PlayMusicStream(assets.music);
         }
 
-        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_LEFT)) {
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_LEFT))
+        {
             float seekTo = pb.timePlayedSecs + (IsKeyPressed(KEY_RIGHT) ? SEEK_SECONDS : -SEEK_SECONDS);
             if (seekTo < 0.0f)
                 seekTo = 0.0f;
@@ -124,7 +131,8 @@ int main(void)
             pb.timePlayed = pb.timePlayedSecs / pb.musicLen;
         }
 
-        if (IsFileDropped()) {
+        if (IsFileDropped())
+        {
             FilePathList droppedFiles = LoadDroppedFiles();
             for (size_t i = 0; i < (size_t)droppedFiles.count; ++i)
                 load_path(droppedFiles.paths[i], &assets, &pause, volume, &pb, font, fontSize, fontSpacing, wCenter, textPos, textSize);
@@ -139,15 +147,11 @@ int main(void)
             DrawTextEx(font, pb.secsLabel, pb.secsPos, fontSize, fontSpacing, RAYWHITE);
 
             // cover
-            DrawTextureV(assets.texture, (Vector2) {
-                wCenter.x - (assets.texture.width / 2), wCenter.y - (assets.texture.height / 2)
-            }, WHITE);
+            DrawTextureV(assets.texture, (Vector2){wCenter.x - (assets.texture.width / 2), wCenter.y - (assets.texture.height / 2)}, WHITE);
 
             // lb
             DrawRectangleV(lbPos, lbSize, GRAY);
-            DrawRectangleV(lbPos, (Vector2) {
-                pb.timePlayed * lbSize.x, lbSize.y
-            }, MUSGO_GREEN);
+            DrawRectangleV(lbPos, (Vector2){pb.timePlayed * lbSize.x, lbSize.y}, MUSGO_GREEN);
 
             // drop
             DrawTextEx(font, dropHint, hintPos, hintFontSize, fontSpacing, RAYWHITE);

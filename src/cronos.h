@@ -7,12 +7,14 @@
 
 #define COVER_SIZE 320
 
-typedef struct Assets {
+typedef struct Assets
+{
     Texture2D texture;
     Music music;
 } Assets;
 
-typedef enum {
+typedef enum
+{
     ASSET_KIND_NONE,
     ASSET_KIND_IMAGE,
     ASSET_KIND_MUSIC,
@@ -20,11 +22,12 @@ typedef enum {
 
 // Playback progress/timing state, derived from a Music stream and reset
 // together whenever the active music is swapped.
-typedef struct Playback {
-    float musicLen;		 // music length in secs
-    float timePlayed;		 // [0.0f..1.0f]
-    float timePlayedSecs;	 // playback position in secs
-    const char *secsLabel;	 // "mm:ss" time remaining
+typedef struct Playback
+{
+    float musicLen;        // music length in secs
+    float timePlayed;      // [0.0f..1.0f]
+    float timePlayedSecs;  // playback position in secs
+    const char *secsLabel; // "mm:ss" time remaining
     Vector2 secsSize;
     Vector2 secsPos;
 } Playback;
@@ -47,14 +50,14 @@ AssetKind get_asset_kind(const char *filepath)
         return ASSET_KIND_NONE;
 
     if (TextIsEqual(ext, ".png") || TextIsEqual(ext, ".jpg") ||
-            TextIsEqual(ext, ".jpeg") || TextIsEqual(ext, ".bmp") ||
-            TextIsEqual(ext, ".gif") || TextIsEqual(ext, ".qoi"))
+        TextIsEqual(ext, ".jpeg") || TextIsEqual(ext, ".bmp") ||
+        TextIsEqual(ext, ".gif") || TextIsEqual(ext, ".qoi"))
         return ASSET_KIND_IMAGE;
 
     if (TextIsEqual(ext, ".mp3") || TextIsEqual(ext, ".wav") ||
-            TextIsEqual(ext, ".ogg") || TextIsEqual(ext, ".flac") ||
-            TextIsEqual(ext, ".xm") || TextIsEqual(ext, ".mod") ||
-            TextIsEqual(ext, ".qoa"))
+        TextIsEqual(ext, ".ogg") || TextIsEqual(ext, ".flac") ||
+        TextIsEqual(ext, ".xm") || TextIsEqual(ext, ".mod") ||
+        TextIsEqual(ext, ".qoa"))
         return ASSET_KIND_MUSIC;
 
     return ASSET_KIND_NONE;
@@ -63,7 +66,8 @@ AssetKind get_asset_kind(const char *filepath)
 bool set_image_asset(Assets *assets, const char *filepath)
 {
     Image image = LoadImage(filepath);
-    if (!IsImageValid(image)) {
+    if (!IsImageValid(image))
+    {
         TraceLog(LOG_WARNING, "Could not add image to assets: %s", filepath);
         return false;
     }
@@ -80,7 +84,8 @@ bool set_image_asset(Assets *assets, const char *filepath)
 
     Texture2D newTexture = LoadTextureFromImage(image);
     UnloadImage(image);
-    if (!IsTextureValid(newTexture)) {
+    if (!IsTextureValid(newTexture))
+    {
         TraceLog(LOG_WARNING, "Could not upload image asset to GPU: %s", filepath);
         return false;
     }
@@ -94,12 +99,14 @@ bool set_image_asset(Assets *assets, const char *filepath)
 bool set_music_asset(Assets *assets, const char *filepath)
 {
     Music newMusic = LoadMusicStream(filepath);
-    if (!IsMusicValid(newMusic)) {
+    if (!IsMusicValid(newMusic))
+    {
         TraceLog(LOG_WARNING, "Could not add music to assets: %s", filepath);
         return false;
     }
 
-    if (IsMusicValid(assets->music)) {
+    if (IsMusicValid(assets->music))
+    {
         StopMusicStream(assets->music);
         UnloadMusicStream(assets->music);
     }
@@ -126,16 +133,22 @@ void load_path(const char *path, Assets *assets, bool *pause, float volume,
 {
     AssetKind kind = get_asset_kind(path);
 
-    if (kind == ASSET_KIND_IMAGE) {
+    if (kind == ASSET_KIND_IMAGE)
+    {
         set_image_asset(assets, path);
-    } else if (kind == ASSET_KIND_MUSIC) {
-        if (set_music_asset(assets, path)) {
+    }
+    else if (kind == ASSET_KIND_MUSIC)
+    {
+        if (set_music_asset(assets, path))
+        {
             *pause = false;
             PlayMusicStream(assets->music);
             SetMusicVolume(assets->music, volume);
             refresh_playback_geometry(pb, assets->music, font, fontSize, fontSpacing, wCenter, textPos, textSize);
         }
-    } else {
+    }
+    else
+    {
         TraceLog(LOG_WARNING, "Unsupported file type: %s", path);
     }
 }
