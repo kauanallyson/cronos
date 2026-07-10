@@ -1,11 +1,6 @@
 #include "raylib.h"
-
-#define RAYGUI_IMPLEMENTATION
-#include "raygui.h"
-
 #define CRONOS_IMPLEMENTATION
 #include "cronos.h"
-
 #include "nob.h"
 
 #define RESOURCES_DIR "../resources/"
