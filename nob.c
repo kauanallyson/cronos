@@ -9,46 +9,37 @@
 #define RAYPATH_LINUX "./raylib-6.0_linux_amd64/"
 #define RAYPATH_WINDOWS "./raylib-6.0_win64_mingw-w64/"
 
-static bool build_linux(bool release)
+static bool build_defaults(Nob_Cmd *cmd, bool release)
 {
-    Nob_Cmd cmd = {0};
-    nob_cmd_append(&cmd, "cc", "-Wall", "-Wextra");
+    nob_cmd_append(cmd, "cc", "-Wall", "-Wextra");
     if (release)
-        nob_cmd_append(&cmd, "-O3");
+        nob_cmd_append(cmd, "-O3");
     else
     {
-        nob_cmd_append(&cmd, "-ggdb");
+        nob_cmd_append(cmd, "-ggdb");
     }
-
-    nob_cmd_append(&cmd, "-I.");
-    nob_cmd_append(&cmd, "-I" RAYPATH_LINUX "include");
-    nob_cmd_append(&cmd, "-o", BUILD_DIR "cronos", SRC_DIR "main.c");
-    nob_cmd_append(&cmd, "-L" RAYPATH_LINUX "lib");
-    nob_cmd_append(&cmd, "-l:libraylib.a", "-lm", "-lX11");
-
-    return nob_cmd_run(&cmd);
 }
 
-static bool build_win(bool release)
+static bool linux_flags(Nob_Cmd *cmd)
 {
-    Nob_Cmd cmd = {0};
-    nob_cmd_append(&cmd, "gcc", "-Wall", "-Wextra");
-    if (release)
-    {
-        nob_cmd_append(&cmd, "-O3");
-    }
-    else
-    {
-        nob_cmd_append(&cmd, "-ggdb");
-    }
+    nob_cmd_append(cmd, "-I.");
+    nob_cmd_append(cmd, "-I" RAYPATH_LINUX "include");
+    nob_cmd_append(cmd, "-o", BUILD_DIR "cronos", SRC_DIR "main.c");
+    nob_cmd_append(cmd, "-L" RAYPATH_LINUX "lib");
+    nob_cmd_append(cmd, "-l:libraylib.a", "-lm", "-lX11");
 
-    nob_cmd_append(&cmd, "-I.");
-    nob_cmd_append(&cmd, "-I" RAYPATH_WINDOWS "include");
-    nob_cmd_append(&cmd, "-o", BUILD_DIR "cronos.exe", SRC_DIR "main.c");
-    nob_cmd_append(&cmd, "-L" RAYPATH_WINDOWS "lib");
-    nob_cmd_append(&cmd, "-l:libraylib.a", "-lgdi32", "-luser32", "-lwinmm", "-lshell32");
+    return nob_cmd_run(cmd);
+}
 
-    return nob_cmd_run(&cmd);
+static bool win_flags(Nob_Cmd *cmd)
+{
+    nob_cmd_append(cmd, "-I.");
+    nob_cmd_append(cmd, "-I" RAYPATH_WINDOWS "include");
+    nob_cmd_append(cmd, "-o", BUILD_DIR "cronos.exe", SRC_DIR "main.c");
+    nob_cmd_append(cmd, "-L" RAYPATH_WINDOWS "lib");
+    nob_cmd_append(cmd, "-l:libraylib.a", "-lgdi32", "-luser32", "-lwinmm", "-lshell32", "-mwindows");
+
+    return nob_cmd_run(cmd);
 }
 
 int main(int argc, char **argv)
@@ -112,16 +103,19 @@ int main(int argc, char **argv)
 #endif
     }
 
+    Nob_Cmd cmd = {0};
+    build_defaults(&cmd, *release);
+
     if (target_linux)
     {
         nob_log(NOB_INFO, "Building for Linux...");
-        if (!build_linux(*release))
+        if (!linux_flags(&cmd))
             return 1;
     }
     else if (target_win)
     {
         nob_log(NOB_INFO, "Building for Windows...");
-        if (!build_win(*release))
+        if (!win_flags(&cmd))
             return 1;
     }
 

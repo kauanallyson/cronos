@@ -1,6 +1,7 @@
 #include "raylib.h"
 #define CRONOS_IMPLEMENTATION
 #include "cronos.h"
+#include "nob.h"
 
 #define RESOURCES_DIR "../resources/"
 #define BG_MUSIC RESOURCES_DIR "On & On NCS.mp3"
@@ -9,8 +10,11 @@
 #define ZOZBLACK (Color){24, 24, 24, 255}
 #define MUSGO_GREEN (Color){10, 95, 30, 255}
 
-int main(void)
+int main(int argc, char **argv)
 {
+    UNUSED(argc);
+    UNUSED(argv);
+
     const char *wTitle = "cronos";
     Vector2 wSize = {800, 600};
     Vector2 wCenter = {.x = wSize.x / 2.0f, .y = wSize.y / 2.0f};
