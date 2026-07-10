@@ -9,11 +9,11 @@
 
 #ifdef _WIN32
 #define RAYPATH "./raylib-6.0_win64_mingw-w64/"
-#define RAYGUI_OBJ BUILD_DIR "raygui_win.o"
+#define RAYGUI_OBJ BUILD_DIR "raygui.o"
 #define OUT_BIN BUILD_DIR "cronos.exe"
 #else
 #define RAYPATH "./raylib-6.0_linux_amd64/"
-#define RAYGUI_OBJ BUILD_DIR "raygui_linux.o"
+#define RAYGUI_OBJ BUILD_DIR "raygui.o"
 #define OUT_BIN BUILD_DIR "cronos"
 #endif
 
