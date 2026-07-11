@@ -1,173 +1,248 @@
 #ifndef CRONOS_H
 #define CRONOS_H
 
+#include "raylib.h"
+#include "nob.h"
 #include <stddef.h>
 
-#include "raylib.h"
-
-#define COVER_SIZE 320
-
-typedef struct Assets
+typedef struct
 {
-    Texture2D texture;
+    char **items;
+    size_t count;
+    size_t capacity;
+} CrPlaylist;
+
+void cr_playlist_push(CrPlaylist *pl, const char *path);
+void cr_playlist_free(CrPlaylist *pl);
+
+typedef struct
+{
     Music music;
-} Assets;
+    bool hasMusic;
+    int currentIndex; // -1 base value
 
-typedef enum
-{
-    ASSET_KIND_NONE,
-    ASSET_KIND_IMAGE,
-    ASSET_KIND_MUSIC,
-} AssetKind;
+    Texture2D cover;
+    bool hasCover;
 
-typedef struct Playback
-{
-    float musicLen;        // music length in secs
-    float timePlayed;      // [0.0f..1.0f]
-    float timePlayedSecs;  // playback position in secs
-    const char *secsLabel; // "mm:ss" time remaining
-    Vector2 secsSize;
-    Vector2 secsPos;
-} Playback;
+    bool paused;
+    float volume; // [0..1]
 
-typedef struct LabelLayout
-{
-    Font font;
-    float fontSize;
-    float fontSpacing;
-    Vector2 wCenter;
-    Vector2 textPos;
-    Vector2 textSize;
-} LabelLayout;
+    CrPlaylist playlist;
+} CrPlayer;
 
-AssetKind get_asset_kind(const char *filepath);
-bool set_image_asset(Assets *assets, const char *filepath);
-bool set_music_asset(Assets *assets, const char *filepath);
-void refresh_playback(Playback *pb, Music music, LabelLayout layout);
-void load_path(const char *path, Assets *assets, bool *pause, float volume,
-               Playback *pb, LabelLayout layout);
+void cr_player_reset(CrPlayer *p, float initialVolume);
+void cr_player_unload(CrPlayer *p);
+
+void cr_player_add_track(CrPlayer *p, const char *path);
+
+void cr_player_set_cover(CrPlayer *p, const char *path);
+
+void cr_player_play_index(CrPlayer *p, int index);
+void cr_player_next(CrPlayer *p);
+void cr_player_prev(CrPlayer *p);
+void cr_player_toggle_pause(CrPlayer *p);
+
+void cr_player_set_volume(CrPlayer *p, float volume); // clamped to [0..1]
+void cr_player_seek(CrPlayer *p, float seconds);      // absolute, clamped
+void cr_player_seek_by(CrPlayer *p, float deltaSeconds);
+
+void cr_player_update(CrPlayer *p);
+
+float cr_player_get_progress(CrPlayer *p);         // [0..1]
+const char *cr_player_get_track_name(CrPlayer *p); // filename without ext
+
+const char *cr_format_time(float seconds); // "MM:SS"
+
+void cr_draw_texture_fit(Texture2D texture, Rectangle bounds, Color tint);
 
 #ifdef CRONOS_IMPLEMENTATION
 
-AssetKind get_asset_kind(const char *filepath)
+#include <stdlib.h>
+#include <string.h>
+
+void cr_playlist_push(CrPlaylist *pl, const char *path)
 {
-    const char *ext = GetFileExtension(filepath);
-    if (ext == NULL)
-        return ASSET_KIND_NONE;
-
-    if (TextIsEqual(ext, ".png") || TextIsEqual(ext, ".jpg") ||
-        TextIsEqual(ext, ".jpeg") || TextIsEqual(ext, ".bmp") ||
-        TextIsEqual(ext, ".gif") || TextIsEqual(ext, ".qoi"))
-        return ASSET_KIND_IMAGE;
-
-    if (TextIsEqual(ext, ".mp3") || TextIsEqual(ext, ".wav") ||
-        TextIsEqual(ext, ".ogg") || TextIsEqual(ext, ".flac") ||
-        TextIsEqual(ext, ".xm") || TextIsEqual(ext, ".mod") ||
-        TextIsEqual(ext, ".qoa"))
-        return ASSET_KIND_MUSIC;
-
-    return ASSET_KIND_NONE;
+    size_t len = strlen(path);
+    char *copy = malloc(len + 1);
+    memcpy(copy, path, len + 1);
+    nob_da_append(pl, copy);
 }
 
-bool set_image_asset(Assets *assets, const char *filepath)
+void cr_playlist_free(CrPlaylist *pl)
 {
-    Image image = LoadImage(filepath);
-    if (!IsImageValid(image))
+    nob_da_foreach(char *, it, pl)
+        free(*it);
+    nob_da_free(*pl);
+    *pl = (CrPlaylist){0};
+}
+
+void cr_player_reset(CrPlayer *p, float initialVolume)
+{
+    *p = (CrPlayer){0};
+    p->currentIndex = -1;
+    p->volume = initialVolume;
+}
+
+void cr_player_unload(CrPlayer *p)
+{
+    if (p->hasMusic)
+        UnloadMusicStream(p->music);
+    if (p->hasCover)
+        UnloadTexture(p->cover);
+    cr_playlist_free(&p->playlist);
+    cr_player_reset(p, p->volume);
+}
+
+void cr_player_add_track(CrPlayer *p, const char *path)
+{
+    cr_playlist_push(&p->playlist, path);
+    if (p->currentIndex < 0)
+        cr_player_play_index(p, (int)p->playlist.count - 1);
+}
+
+void cr_player_set_cover(CrPlayer *p, const char *path)
+{
+    if (p->hasCover)
+        UnloadTexture(p->cover);
+    p->cover = LoadTexture(path);
+    p->hasCover = IsTextureValid(p->cover);
+}
+
+void cr_player_play_index(CrPlayer *p, int index)
+{
+    if (index < 0 || (size_t)index >= p->playlist.count)
+        return;
+
+    if (p->hasMusic)
+        UnloadMusicStream(p->music);
+
+    p->music = LoadMusicStream(p->playlist.items[index]);
+    p->hasMusic = IsMusicValid(p->music);
+    p->currentIndex = index;
+
+    if (p->hasMusic)
     {
-        TraceLog(LOG_WARNING, "Could not add image to assets: %s", filepath);
-        return false;
+        p->music.looping = false;
+        SetMusicVolume(p->music, p->volume);
+        PlayMusicStream(p->music);
+        p->paused = false;
     }
-
-    int cropSize = (image.width < image.height) ? image.width : image.height;
-    Rectangle crop = {
-        .x = (image.width - cropSize) / 2.0f,
-        .y = (image.height - cropSize) / 2.0f,
-        .width = (float)cropSize,
-        .height = (float)cropSize,
-    };
-    ImageCrop(&image, crop);
-    ImageResize(&image, COVER_SIZE, COVER_SIZE);
-
-    Texture2D newTexture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    if (!IsTextureValid(newTexture))
-    {
-        TraceLog(LOG_WARNING, "Could not upload image asset to GPU: %s", filepath);
-        return false;
-    }
-
-    if (IsTextureValid(assets->texture))
-        UnloadTexture(assets->texture);
-    assets->texture = newTexture;
-    return true;
 }
 
-bool set_music_asset(Assets *assets, const char *filepath)
+void cr_player_next(CrPlayer *p)
 {
-    Music newMusic = LoadMusicStream(filepath);
-    if (!IsMusicValid(newMusic))
-    {
-        TraceLog(LOG_WARNING, "Could not add music to assets: %s", filepath);
-        return false;
-    }
-
-    if (IsMusicValid(assets->music))
-    {
-        StopMusicStream(assets->music);
-        UnloadMusicStream(assets->music);
-    }
-    assets->music = newMusic;
-    return true;
+    if (p->playlist.count == 0)
+        return;
+    int next = (p->currentIndex + 1) % (int)p->playlist.count;
+    cr_player_play_index(p, next);
 }
 
-static void reset_playback_time(Playback *pb, Music music)
+void cr_player_prev(CrPlayer *p)
 {
-    pb->musicLen = IsMusicValid(music) ? GetMusicTimeLength(music) : 0.0f;
-    pb->timePlayed = 0.0f;
-    pb->timePlayedSecs = 0.0f;
+    if (p->playlist.count == 0)
+        return;
+    int prev = (p->currentIndex - 1 + (int)p->playlist.count) % (int)p->playlist.count;
+    cr_player_play_index(p, prev);
 }
 
-static void update_playback_label(Playback *pb, LabelLayout layout)
+void cr_player_toggle_pause(CrPlayer *p)
 {
-    pb->secsLabel = TextFormat("%02d:%02d", (int)pb->musicLen / 60, (int)pb->musicLen % 60);
-    pb->secsSize = MeasureTextEx(layout.font, pb->secsLabel, layout.fontSize, layout.fontSpacing);
-    pb->secsPos.x = layout.wCenter.x - (pb->secsSize.x / 2.0f);
-    pb->secsPos.y = layout.textPos.y + layout.textSize.y;
-}
-
-void refresh_playback(Playback *pb, Music music, LabelLayout layout)
-{
-    reset_playback_time(pb, music);
-    update_playback_label(pb, layout);
-}
-
-static void start_music_playback(Assets *assets, bool *pause, float volume, Playback *pb, LabelLayout layout)
-{
-    *pause = false;
-    PlayMusicStream(assets->music);
-    SetMusicVolume(assets->music, volume);
-    refresh_playback(pb, assets->music, layout);
-}
-
-// Loads `path` as either an image or music asset, updating playback state as needed.
-void load_path(const char *path, Assets *assets, bool *pause, float volume,
-               Playback *pb, LabelLayout layout)
-{
-    AssetKind kind = get_asset_kind(path);
-
-    if (kind == ASSET_KIND_IMAGE)
-    {
-        set_image_asset(assets, path);
-    }
-    else if (kind == ASSET_KIND_MUSIC)
-    {
-        if (set_music_asset(assets, path))
-            start_music_playback(assets, pause, volume, pb, layout);
-    }
+    if (!p->hasMusic)
+        return;
+    p->paused = !p->paused;
+    if (p->paused)
+        PauseMusicStream(p->music);
     else
+        ResumeMusicStream(p->music);
+}
+
+void cr_player_set_volume(CrPlayer *p, float volume)
+{
+    if (volume < 0.0f)
+        volume = 0.0f;
+    else if (volume > 1.0f)
+        volume = 1.0f;
+    p->volume = volume;
+    if (p->hasMusic)
+        SetMusicVolume(p->music, volume);
+}
+
+void cr_player_seek(CrPlayer *p, float seconds)
+{
+    if (!p->hasMusic)
+        return;
+    float len = GetMusicTimeLength(p->music);
+    if (seconds < 0.0f)
+        seconds = 0.0f;
+    else if (seconds > len)
+        seconds = len;
+    SeekMusicStream(p->music, seconds);
+}
+
+void cr_player_seek_by(CrPlayer *p, float deltaSeconds)
+{
+    if (!p->hasMusic)
+        return;
+    cr_player_seek(p, GetMusicTimePlayed(p->music) + deltaSeconds);
+}
+
+void cr_player_update(CrPlayer *p)
+{
+    if (!p->hasMusic)
+        return;
+
+    UpdateMusicStream(p->music);
+
+    if (!p->paused)
     {
-        TraceLog(LOG_WARNING, "Unsupported file type: %s", path);
+        float len = GetMusicTimeLength(p->music);
+        float played = GetMusicTimePlayed(p->music);
+        if (len > 0.0f && played >= len - 0.05f)
+            cr_player_next(p);
     }
+}
+
+float cr_player_get_progress(CrPlayer *p)
+{
+    if (!p->hasMusic)
+        return 0.0f;
+    float len = GetMusicTimeLength(p->music);
+    if (len <= 0.0f)
+        return 0.0f;
+    return GetMusicTimePlayed(p->music) / len;
+}
+
+const char *cr_player_get_track_name(CrPlayer *p)
+{
+    if (p->currentIndex < 0)
+        return NULL;
+    return GetFileNameWithoutExt(p->playlist.items[p->currentIndex]);
+}
+
+const char *cr_format_time(float seconds)
+{
+    if (seconds < 0.0f)
+        seconds = 0.0f;
+    int mins = (int)seconds / 60;
+    int secs = (int)seconds % 60;
+    return TextFormat("%02d:%02d", mins, secs);
+}
+
+void cr_draw_texture_fit(Texture2D texture, Rectangle bounds, Color tint)
+{
+    if (texture.id == 0)
+        return;
+
+    float scaleX = bounds.width / (float)texture.width;
+    float scaleY = bounds.height / (float)texture.height;
+    float scale = scaleX < scaleY ? scaleX : scaleY;
+
+    float w = texture.width * scale;
+    float h = texture.height * scale;
+
+    Rectangle src = {0, 0, (float)texture.width, (float)texture.height};
+    Rectangle dst = {bounds.x + (bounds.width - w) / 2.0f, bounds.y + (bounds.height - h) / 2.0f, w, h};
+    DrawTexturePro(texture, src, dst, (Vector2){0, 0}, 0.0f, tint);
 }
 
 #endif // CRONOS_IMPLEMENTATION
